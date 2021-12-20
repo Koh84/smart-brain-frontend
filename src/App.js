@@ -521,16 +521,40 @@ const particlesOptions = {
   "zLayers": 100
 }
 
+const initialState = {
+  input: '',
+  imageUrl: '',
+  box: {},
+  route: 'signin',
+  isSignedIn: false,
+  user: {
+    id: '',
+    name: '',
+    email: '',
+    entries: 0,
+    joined: ''
+  }
+}
+
 class App extends Component {
   constructor() {
     super();
-    this.state = {
-      input: '',
-      imageUrl: '',
-      box: {},
-      route: 'signin',
-      isSignedIn: false
-    }
+    this.state = initialState;
+  }
+
+  loadUser = (data) => {
+    console.log('data', data);
+    this.setState(
+      {
+        user: {
+          id: data.id,
+          name: data.name,
+          email: data.email,
+          entries: data.entries,
+          joined: data.joined
+        }
+      }
+    )
   }
 
   calculateFaceLocation = (data) => {
@@ -556,45 +580,38 @@ class App extends Component {
 
   onButtonSubmit = () => {
     this.setState({imageUrl: this.state.input})
-    
-    //url e.g. https://www.thestatesman.com/wp-content/uploads/2017/08/1493458748-beauty-face-517.jpg
-    let raw = JSON.stringify({
-      "user_app_id": {
-        "user_id": "4vsdm83py3b7",
-        "app_id": "2a7550083c5141eaa36482561950ce7e"
-      },
-      "inputs": [
-        {
-          "data": {
-            "image": {
-              "url": this.state.input
-            }
-          }
-        }
-      ]
-    });
-
-    const requestOptions = {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': 'Key 8ae6204c6131416792ddd091a84db80c'
-      },
-      body: raw
-    };
-
-    fetch("https://api.clarifai.com/v2/models/f76196b43bbd45c99b4f3cd8e8b40a8a/outputs", requestOptions)
-      .then(response => response.text())
+      fetch('https://guarded-hamlet-57932.herokuapp.com/imageurl', {
+        method: 'post',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({input: this.state.input})
+      })
+      .then(response => response.json())
       .then(result => {
         let response = JSON.parse(result, null, 2);
         this.displayFaceBox(this.calculateFaceLocation(response));
+
+        if(response){
+          console.log('id =', this.state.user.id);
+          fetch('https://guarded-hamlet-57932.herokuapp.com/image', {
+            method: 'put',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({id: this.state.user.id})
+          })
+          .then(response => response.json())
+          .then(count => {
+            this.setState(Object.assign(this.state.user, { entries: count }));
+            console.log('user =', this.state.user);
+          })
+          .catch(error => console.log('error', error));
+        }
+
       })
       .catch(error => console.log('error', error));
   }
 
   onRouteChange = (route) => {
     if(route === 'signout') {
-      this.setState({isSignedIn: false});
+      this.setState(initialState);
     } else if(route === 'home') {
       this.setState({isSignedIn: true});
     }
@@ -614,7 +631,7 @@ class App extends Component {
       { route === 'home' 
         ? <div>
             <Logo />
-            <Rank />
+            <Rank name={this.state.user.name} entries={this.state.user.entries}/>
             <ImageLinkForm 
               onInputChange={this.onInputChange} 
               onButtonSubmit={this.onButtonSubmit} 
@@ -623,8 +640,8 @@ class App extends Component {
           </div>
         : (
             route === 'signin' 
-            ? <Signin onRouteChange={this.onRouteChange}/>
-            : <Register onRouteChange={this.onRouteChange}/>
+            ? <Signin onRouteChange={this.onRouteChange} loadUser={this.loadUser}/>
+            : <Register onRouteChange={this.onRouteChange} loadUser={this.loadUser}/>
           ) 
       }
     </div>
